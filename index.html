@@ -1,0 +1,337 @@
+```html
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>美術の目：9分割構図カメラ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+            background-color: #1a1a1a;
+        }
+
+        .app-container {
+            container-type: size;
+        }
+
+        .grid-line-h {
+            position: absolute; left: 0; right: 0; height: 1px;
+            background-color: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 2px rgba(0, 0, 0, 1);
+            pointer-events: none; z-index: 20;
+        }
+        .grid-line-v {
+            position: absolute; top: 0; bottom: 0; width: 1px;
+            background-color: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 2px rgba(0, 0, 0, 1);
+            pointer-events: none; z-index: 20;
+        }
+
+        .btn-ui {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; border-radius: 1cqw; padding: 1cqw;
+        }
+        .btn-ui:active { transform: scale(0.95); opacity: 0.8; }
+
+        input[type=range] {
+            -webkit-appearance: none; background: #444; height: 2cqh; border-radius: 1cqh; touch-action: pan-x;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 5cqw; height: 5cqw;
+            background: #3b82f6; cursor: pointer; border-radius: 50%; border: 0.5cqw solid white;
+        }
+
+        .hidden { display: none !important; }
+
+        #resultImage {
+            user-select: auto !important;
+            -webkit-user-select: auto !important;
+            touch-action: auto !important;
+        }
+
+        /* ロゴ風のタイポグラフィ設定 */
+        .logo-text {
+            font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', sans-serif;
+            paint-order: stroke fill;
+        }
+    </style>
+</head>
+<body>
+    <div id="wrapper" class="w-screen h-[100dvh] flex items-center justify-center overflow-hidden select-none transition-colors duration-500">
+        <div id="appContainer" class="app-container relative flex flex-col bg-white shadow-2xl overflow-hidden"
+             style="aspect-ratio: 4 / 3; width: 100%; max-width: calc(100dvh * (4 / 3)); max-height: 100dvh;">
+
+            <!-- ヘッダー：ロゴとテキストをカスタマイズ -->
+            <header class="flex-shrink-0 flex items-center justify-between bg-zinc-900 text-white" style="height: 10cqh; padding: 0 3cqw;">
+                <div class="flex items-baseline gap-[1.5cqw]">
+                    <!-- びじゅつ（ロゴ） -->
+                    <span class="logo-text" style="font-size: 5.5cqw; color: #fbbf24; font-weight: 900; text-shadow: 0.4cqw 0.4cqw 0px #000; letter-spacing: -0.1cqw; transform: rotate(-2deg); display: inline-block; margin-right: 1cqw;">びじゅつ</span>
+                    <!-- こうず を つかむ（白文字） -->
+                    <span style="font-size: 2.2cqw; color: #ffffff; font-weight: bold; letter-spacing: 0.1cqw;">こうず を つかむ</span>
+                    <!-- みずのうらすぺしゃる（ピンクのかわいい文字） -->
+                    <span style="font-size: 2cqw; color: #f472b6; font-weight: bold; font-style: italic; font-family: 'Hiragino Maru Gothic ProN', 'Meiryo', sans-serif;">みずのうらすぺしゃる</span>
+                </div>
+                <div class="flex gap-[2cqw]">
+                    <button id="btnHelp" class="btn-ui bg-zinc-700" style="width: 8cqw; height: 6cqh; font-size: 2cqw;">使い方</button>
+                    <button id="btnReset" class="btn-ui bg-red-600" style="width: 12cqw; height: 6cqh; font-size: 2cqw;">最初から</button>
+                </div>
+            </header>
+
+            <main class="flex-1 relative flex flex-col items-center justify-center bg-zinc-100 overflow-hidden">
+                <div id="emptyState" class="flex flex-col items-center justify-center text-zinc-400" style="gap: 2cqw;">
+                    <div style="font-size: 10cqw;">📷</div>
+                    <p style="font-size: 3cqw; font-weight: bold; color: #444;">風景を撮影または選択</p>
+                    <label class="btn-ui bg-blue-600 text-white" style="width: 35cqw; height: 10cqh; font-size: 3.5cqw; margin-top: 2cqw;">
+                        写真を選ぶ・撮る
+                        <input type="file" id="imageInput" class="hidden" accept="image/*">
+                    </label>
+                </div>
+
+                <div id="viewerArea" class="hidden w-full h-full flex flex-col items-center justify-center p-[2cqw]">
+                    <div id="photoFrame" class="relative shadow-lg bg-black overflow-hidden border-[0.2cqw] border-zinc-400" 
+                         style="max-width: 90cqw; max-height: 62cqh; touch-action: none;">
+                        <img id="previewImage" src="" class="absolute transition-none pointer-events-none origin-center" style="max-width: none; max-height: none;">
+                        <div id="gridOverlay" class="absolute inset-0 pointer-events-none z-20">
+                            <div class="grid-line-h" style="top: 33.33%;"></div>
+                            <div class="grid-line-h" style="top: 66.66%;"></div>
+                            <div class="grid-line-v" style="left: 33.33%;"></div>
+                            <div class="grid-line-v" style="left: 66.66%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-center bg-white/90 backdrop-blur rounded-full px-[3cqw] shadow-md" 
+                         style="width: 70cqw; height: 9cqh; margin-top: 2cqh; gap: 3cqw; border: 1px solid #ddd;">
+                        <span style="font-size: 2.2cqw; font-weight: bold; color: #444;">ズーム</span>
+                        <input type="range" id="zoomSlider" min="1" max="4" step="0.01" value="1" class="flex-1">
+                        <button id="btnCenter" class="btn-ui bg-zinc-200 text-zinc-700" style="padding: 0 2cqw; height: 6cqh; font-size: 1.8cqw;">位置リセット</button>
+                    </div>
+                </div>
+            </main>
+
+            <footer id="toolbar" class="flex-shrink-0 flex items-center justify-center bg-zinc-800" style="height: 12cqh; gap: 4cqw; padding: 0 2cqw;">
+                <label id="btnRetake" class="btn-ui bg-zinc-700 text-white hidden" style="width: 25cqw; height: 8cqh; font-size: 2.5cqw;">
+                    別の写真にする
+                    <input type="file" id="imageInputRetake" class="hidden" accept="image/*">
+                </label>
+                <button id="btnSave" class="btn-ui bg-green-600 text-white hidden" style="width: 35cqw; height: 8cqh; font-size: 3cqw;">
+                    📸 保存画面を出す
+                </button>
+            </footer>
+
+            <div id="modalSaveResult" class="hidden absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 p-[5cqw]">
+                <div class="text-white text-center mb-[2cqh]" style="font-size: 2.5cqw;">
+                    <p class="font-bold text-yellow-400">画像を長押しして「"写真"に保存」を選択してください</p>
+                    <p class="text-zinc-400 text-[0.8em]">保存できたら下のボタンで戻ります</p>
+                </div>
+                <img id="resultImage" class="shadow-2xl border-2 border-white/20" style="max-width: 90%; max-height: 70%; object-fit: contain;">
+                <button id="btnCloseSave" class="btn-ui bg-white text-black mt-[4cqh]" style="width: 40cqw; height: 8cqh; font-size: 3cqw;">アプリに戻る</button>
+            </div>
+
+            <div id="modalMsg" class="hidden absolute inset-0 z-50 flex items-center justify-center p-[5cqw] bg-black/70 backdrop-blur-sm">
+                <div class="bg-white rounded-[2cqw] shadow-2xl flex flex-col items-center justify-center" style="width: 60cqw; min-height: 30cqh; padding: 4cqw; gap: 3cqw;">
+                    <p id="msgText" style="font-size: 3cqw; text-align: center; font-weight: bold; color: #222;"></p>
+                    <div id="msgButtons" class="flex gap-[2cqw]">
+                         <button id="btnCloseMsg" class="btn-ui bg-zinc-800 text-white" style="width: 20cqw; height: 7cqh; font-size: 2.5cqw;">閉じる</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="modalHelp" class="hidden absolute inset-0 z-50 flex items-center justify-center p-[5cqw] bg-black/70 backdrop-blur-sm">
+                <div class="bg-white rounded-[2cqw] shadow-2xl flex flex-col items-center" style="width: 75cqw; max-height: 80cqh; padding: 4cqw; gap: 3cqw;">
+                    <h2 style="font-size: 4cqw; font-weight: bold; border-bottom: 2px solid #eee; width: 100%; text-align: center; padding-bottom: 1cqh;">使いかた</h2>
+                    <div class="overflow-y-auto w-full" style="font-size: 2.2cqw; line-height: 1.6; color: #444;">
+                        <ul class="flex flex-col gap-[2cqh]">
+                            <li>① 撮影するかライブラリから写真を選びます。</li>
+                            <li>② 分割線の端は自動的に写真の端にピッタリ合います。</li>
+                            <li>③ 写真を動かしたり、拡大して構図を決めます。</li>
+                            <li>④ 「保存画面を出す」ボタンを押します。</li>
+                            <li>⑤ <strong>出てきた画像を長押しして保存</strong>してください。</li>
+                        </ul>
+                    </div>
+                    <button id="btnCloseHelp" class="btn-ui bg-zinc-800 text-white" style="width: 20cqw; height: 7cqh; font-size: 2.5cqw;">わかった</button>
+                </div>
+            </div>
+
+            <canvas id="saveCanvas" class="hidden"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const previewImage = document.getElementById('previewImage');
+        const emptyState = document.getElementById('emptyState');
+        const viewerArea = document.getElementById('viewerArea');
+        const photoFrame = document.getElementById('photoFrame');
+        const zoomSlider = document.getElementById('zoomSlider');
+        const btnSave = document.getElementById('btnSave');
+        const wrapper = document.getElementById('wrapper');
+        const saveCanvas = document.getElementById('saveCanvas');
+        const modalSaveResult = document.getElementById('modalSaveResult');
+        const resultImage = document.getElementById('resultImage');
+        const btnCloseSave = document.getElementById('btnCloseSave');
+
+        let state = { scale: 1, x: 0, y: 0, isDragging: false, startX: 0, startY: 0, initialDistance: 0, initialScale: 1 };
+
+        window.onload = () => {
+            const savedImage = localStorage.getItem('art_eye_last_image');
+            if (savedImage) displayImage(savedImage);
+        };
+
+        function updateTransform() {
+            previewImage.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+            zoomSlider.value = state.scale;
+        }
+
+        function resetPosition() {
+            state.scale = 1; state.x = 0; state.y = 0;
+            updateTransform();
+        }
+
+        document.getElementById('btnCenter').onclick = resetPosition;
+
+        const handleFile = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const dataUrl = event.target.result;
+                localStorage.setItem('art_eye_last_image', dataUrl);
+                displayImage(dataUrl);
+            };
+            reader.readAsDataURL(file);
+        };
+
+        document.getElementById('imageInput').addEventListener('change', handleFile);
+        document.getElementById('imageInputRetake').addEventListener('change', handleFile);
+
+        function displayImage(dataUrl) {
+            previewImage.src = dataUrl;
+            previewImage.onload = () => {
+                emptyState.classList.add('hidden');
+                viewerArea.classList.remove('hidden');
+                btnSave.classList.remove('hidden');
+                document.getElementById('btnRetake').classList.remove('hidden');
+
+                const imgW = previewImage.naturalWidth;
+                const imgH = previewImage.naturalHeight;
+                const imgRatio = imgW / imgH;
+
+                const mainArea = document.querySelector('main');
+                const maxW = mainArea.clientWidth * 0.9;
+                const maxH = mainArea.clientHeight * 0.7;
+
+                let finalW, finalH;
+                if (imgRatio > (maxW / maxH)) {
+                    finalW = maxW; finalH = maxW / imgRatio;
+                } else {
+                    finalH = maxH; finalW = maxH * imgRatio;
+                }
+
+                photoFrame.style.width = `${finalW}px`;
+                photoFrame.style.height = `${finalH}px`;
+                previewImage.style.width = "100%";
+                previewImage.style.height = "100%";
+                previewImage.style.top = "0";
+                previewImage.style.left = "0";
+
+                resetPosition();
+                wrapper.style.backgroundColor = (imgH > imgW) ? '#2d1a1a' : '#1a2d2d';
+            };
+        }
+
+        zoomSlider.oninput = (e) => { state.scale = parseFloat(e.target.value); updateTransform(); };
+
+        const getDistance = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+
+        const onStart = (e) => {
+            if (e.touches && e.touches.length === 2) {
+                state.initialDistance = getDistance(e.touches);
+                state.initialScale = state.scale;
+            } else {
+                state.isDragging = true;
+                const cX = e.touches ? e.touches[0].clientX : e.clientX;
+                const cY = e.touches ? e.touches[0].clientY : e.clientY;
+                state.startX = cX - state.x; state.startY = cY - state.y;
+            }
+        };
+
+        const onMove = (e) => {
+            if (e.touches && e.touches.length === 2) {
+                const delta = getDistance(e.touches) / state.initialDistance;
+                state.scale = Math.min(Math.max(state.initialScale * delta, 1), 4);
+                updateTransform();
+            } else if (state.isDragging) {
+                const cX = e.touches ? e.touches[0].clientX : e.clientX;
+                const cY = e.touches ? e.touches[0].clientY : e.clientY;
+                state.x = cX - state.startX; state.y = cY - state.startY;
+                updateTransform();
+            }
+        };
+
+        photoFrame.addEventListener('mousedown', onStart);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', () => state.isDragging = false);
+        photoFrame.addEventListener('touchstart', onStart, { passive: false });
+        window.addEventListener('touchmove', (e) => {
+            if(e.target.closest('#photoFrame')) { e.preventDefault(); onMove(e); }
+        }, { passive: false });
+        window.addEventListener('touchend', () => state.isDragging = false);
+
+        btnSave.onclick = (e) => {
+            e.preventDefault();
+            const canvas = saveCanvas;
+            const ctx = canvas.getContext('2d');
+            const exportScale = Math.min(2000 / previewImage.clientWidth, previewImage.naturalWidth / previewImage.clientWidth);
+            canvas.width = previewImage.clientWidth * exportScale;
+            canvas.height = previewImage.clientHeight * exportScale;
+
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(canvas.width/2 + state.x * exportScale, canvas.height/2 + state.y * exportScale);
+            ctx.scale(state.scale, state.scale);
+            ctx.drawImage(previewImage, -canvas.width/2, -canvas.height/2, canvas.width, canvas.height);
+            ctx.restore();
+
+            const lw = Math.max(4, canvas.width * 0.006);
+            ctx.strokeStyle = 'white'; ctx.lineWidth = lw;
+            ctx.shadowColor = 'black'; ctx.shadowBlur = lw/2;
+            for(let i=1; i<=2; i++) {
+                let y = (canvas.height/3)*i; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+                let x = (canvas.width/3)*i; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+            }
+            resultImage.src = canvas.toDataURL('image/png');
+            modalSaveResult.classList.remove('hidden');
+        };
+
+        btnCloseSave.onclick = () => modalSaveResult.classList.add('hidden');
+
+        document.getElementById('btnReset').onclick = () => { 
+            if(confirm("最初からやり直しますか？")) { localStorage.clear(); location.reload(); }
+        };
+
+        document.getElementById('btnHelp').onclick = () => document.getElementById('modalHelp').classList.remove('hidden');
+        document.getElementById('btnCloseHelp').onclick = () => document.getElementById('modalHelp').classList.add('hidden');
+        document.getElementById('btnCloseMsg').onclick = () => document.getElementById('modalMsg').classList.add('hidden');
+
+        document.addEventListener('touchmove', (e) => {
+            if (e.target.closest('#photoFrame') || e.target.closest('input[type=range]') || e.target.closest('.btn-ui') || e.target.id === 'resultImage') return;
+            e.preventDefault();
+        }, { passive: false });
+    </script>
+</body>
+</html>
+
+```
